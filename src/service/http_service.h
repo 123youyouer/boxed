@@ -19,18 +19,22 @@ public:
 
 extern seastar::distributed<http_service> _g_http_service;
 
-template<typename F>
+using CONNECTION_PROC=void(const seastar::connected_socket& fd);
+
+template<CONNECTION_PROC T>
 auto listen_proc=[](uint16_t _port){
     return seastar::do_with(seastar::engine().listen(seastar::make_ipv4_address({_port}),{true}),
                      [](auto& listener){
                          return seastar::keep_doing([&listener]{
                              return listener.accept().then([](seastar::connected_socket fd, seastar::socket_address addr)mutable{
                                  return seastar::smp::submit_to(seastar::engine().cpu_id(),[fd=std::move(fd)]{
-                                     return F()(fd);
+                                     T(fd);
                                  });
                              });
                          });
                      }
     );
 };
+
+
 #endif //BOXED_HTTP_SERVICE_H
