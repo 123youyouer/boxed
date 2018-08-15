@@ -3,3 +3,5 @@
 //
 
 #include "http_service.h"
+
+seastar::distributed<http_service> _g_http_service;
