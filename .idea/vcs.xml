@@ -3,5 +3,8 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/seastar" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/seastar/c-ares" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/seastar/dpdk" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/seastar/fmt" vcs="Git" />
   </component>
 </project>

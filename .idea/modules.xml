@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/eos_learn.iml" filepath="$PROJECT_DIR$/.idea/eos_learn.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/boxed.iml" filepath="$PROJECT_DIR$/.idea/boxed.iml" />
     </modules>
   </component>
 </project>
