@@ -6,12 +6,13 @@
 #include "core/sleep.hh"
 #include "core/thread.hh"
 #include <iostream>
+#include "service/http_service.h"
+
+
 using namespace std::chrono_literals;
 int main(int argc, char** argv) {
     seastar::app_template app;
     app.run(argc, argv, []{
-        return seastar::sleep(1s).then([]{
-            std::cout<<"hello world"<<std::endl;
-        });
+        return listen_proc(8080);
     });
 }
