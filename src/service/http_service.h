@@ -33,7 +33,44 @@ struct connection {
             , _in(_socket.input())
             , _out(_socket.output())
     {}
+    connection(connection&& o)
+            : _socket(std::move(o._socket))
+            , _addr(o._addr)
+            , _in(_socket.input())
+            , _out(_socket.output())
+    {}
     ~connection() {}
+};
+
+extern int k;
+
+constexpr
+auto connection_proc=[](seastar::connected_socket& fd, seastar::socket_address& addr){
+    return seastar::do_with(
+            connection(std::move(fd),addr),
+            [](auto& conn){
+                return seastar::do_until(
+                        [&conn]{
+                            return conn._in.eof();
+                        },
+                        [&conn]{
+                            conn._in.read().then([&conn](seastar::temporary_buffer<char>&& data)mutable{
+                                using namespace std::chrono_literals;
+                                return seastar::sleep(5s).then([&conn,data=data.clone()]{
+                                    conn._out.write(data.get()).then([&conn]{
+                                        conn._out.flush();
+                                    });
+                                });
+                            });
+                            return seastar::make_ready_future();
+                        }
+                ).handle_exception([](std::exception_ptr ep){
+                    std::cout<<ep<<std::endl;
+                }).finally([&conn]{
+                    return conn._out.close().finally([]{});
+                });
+            }
+    );
 };
 
 constexpr
@@ -43,27 +80,7 @@ auto listen_proc=[](uint16_t _port){
                                 return seastar::keep_doing([&listener]{
                                     std::cout<<"keep_doing"<<std::endl;
                                     return listener.accept().then([](seastar::connected_socket fd, seastar::socket_address addr)mutable{
-                                        auto conn = seastar::make_lw_shared<connection>(std::move(fd), addr);
-                                        seastar::do_until(
-                                                [conn](){
-                                                    return conn->_in.eof();
-                                                },
-                                                [conn](){
-                                                    return conn->_in.read().then([conn](seastar::temporary_buffer<char>&& data)mutable{
-                                                        using namespace std::chrono_literals;
-                                                        return seastar::sleep(5s).then([conn,data=data.clone()]{
-                                                            conn->_out.write(data.get()).then([conn]{
-                                                                conn->_out.flush();
-                                                            });
-                                                        });
-
-                                                    });
-                                                }
-                                        ).handle_exception([](std::exception_ptr ep){
-                                            std::cout<<ep<<std::endl;
-                                        }).finally([conn]{
-                                            return conn->_out.close().finally([]{});
-                                        });
+                                        connection_proc(fd,addr);
                                     });
                                 });
                             }
