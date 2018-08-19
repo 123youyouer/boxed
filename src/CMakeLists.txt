@@ -1,8 +1,12 @@
+add_library(http_parser
+        ${PROJECT_ROOT_PATH}/http-parser/http_parser.h
+        ${PROJECT_ROOT_PATH}/http-parser/http_parser.c)
+
 add_executable(boxed
         main.cpp
-        service/http_service.h
-        service/http_service.cpp)
-message(STATUS,${CMAKE_CXX_COMPILER_ID})
+        service/http_service.hpp
+        service/listener.hpp service/connection.hpp)
+message(STATUS,${CMAKE_CURRENT_BINARY_DIR})
 
 IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
     target_compile_options(boxed PUBLIC
@@ -12,6 +16,7 @@ IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
             -fvisibility=hidden -Wno-attributes -pthread
             -I${SEASTAR_PATH} -U_FORTIFY_SOURCE
             -I${SEASTAR_PATH}/fmt
+            -I${PROJECT_ROOT_PATH}
             -DBOOST_TEST_DYN_LINK -Wno-ignored-attributes
             -Wno-overloaded-virtual
             -Wno-uninitialized
@@ -29,6 +34,7 @@ IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
     target_link_libraries(boxed PUBLIC
             -L${SEASTAR_PATH}/build/release/
             -L${SEASTAR_PATH}/build/release/fmt/fmt
+            -L${CMAKE_CURRENT_BINARY_DIR}
             -Wl,--whole-archive,-lseastar,--no-whole-archive
             -lfmt -std=gnu++17 -g
             -Wall -Werror -Wno-error=deprecated-declarations -fvisibility=hidden -Wno-attributes
@@ -54,6 +60,7 @@ IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
             -lyaml-cpp -lhwloc -lnuma -lpciaccess -lxml2 -lz
             -lcares-seastar
             -lfmt
+            -lhttp_parser
             )
 ELSEIF(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
     target_compile_options(boxed PUBLIC
@@ -63,6 +70,7 @@ ELSEIF(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
             -I${SEASTAR_PATH} -U_FORTIFY_SOURCE
             -fconcepts
             -I${SEASTAR_PATH}/fmt
+            -I${PROJECT_ROOT_PATH}
             -DBOOST_TEST_DYN_LINK -Wno-ignored-attributes
             -Wno-overloaded-virtual -Wno-maybe-uninitialized -Wno-error=cpp -Wno-stringop-overflow
             #        -DSEASTAR_HAVE_GCC6_CONCEPTS
@@ -76,6 +84,7 @@ ELSEIF(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
     target_link_libraries(boxed PUBLIC
             -L${SEASTAR_PATH}/build/release/
             -L${SEASTAR_PATH}/build/release/fmt/fmt
+            -L${CMAKE_CURRENT_BINARY_DIR}
             -Wl,--whole-archive,-lseastar,--no-whole-archive
             -lfmt -std=gnu++17 -g
             -Wall -Werror -Wno-error=deprecated-declarations -fvisibility=hidden -Wno-attributes
@@ -98,6 +107,7 @@ ELSEIF(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
             -lyaml-cpp -lhwloc -lnuma -lpciaccess -lxml2 -lz
             -lcares-seastar
             -lfmt
+            -lhttp_parser
             )
 ENDIF()
 
