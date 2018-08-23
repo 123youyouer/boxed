@@ -11,15 +11,24 @@
 
 namespace http_service{
     struct http_exp{
+        int a=0;
+        http_exp(){
+            std::cout<<"build q1"<<std::endl;
+        }
+
+
     };
     struct http_header {
         char* name;
         char* value;
     };
-    struct http_req{
-        char* method;
+    struct http_response{
+
+    };
+    struct http_request{
+        std::string method;
         std::string url;
-        char* body;
+        std::string body;
         unsigned int flags;
         unsigned short http_major, http_minor;
         struct http_header *headers;
@@ -31,7 +40,7 @@ namespace http_service{
             return 0;
         }
         static int cb_on_url(http_parser* p, const char *at, size_t length){
-            static_cast<http_req*>(p->data)->url.insert(0,at,length);
+            (static_cast<http_request*>(p->data)->url=at).resize(length);
             return 0;
         }
         static int cb_on_status(http_parser* p, const char *at, size_t length){
@@ -59,6 +68,7 @@ namespace http_service{
             return 0;
         }
     public:
+        http_request last_request;
         http_parser req_parser;
         http_parser_settings settings;
         http_connection_context(seastar::connected_socket&& socket, seastar::socket_address addr)
@@ -79,24 +89,28 @@ namespace http_service{
 
     constexpr
     auto build_requset=[](http_parser&& parser
-                    , http_parser_settings&& settings
-                    , seastar::temporary_buffer<char>&& data
-                    , http_req&& req){
+            , http_parser_settings&& settings
+            , seastar::temporary_buffer<char>&& data
+            , http_request&& req){
         http_parser_init(&parser,HTTP_REQUEST);
         parser.data=&req;
         http_parser_execute(&parser,&settings,data.begin(),data.size());
-        return seastar::make_ready_future<http_req>(req);
+        return seastar::make_ready_future<http_request&&>(std::forward<http_request&&>(req));
+    };
+
+    constexpr
+    auto build_response=[](http_response&& res){
+        return seastar::make_ready_future<http_response&&>(std::forward<http_response&&>(res));
     };
 
     constexpr
     auto build_parser=[](http_connection_context&& ctx, seastar::temporary_buffer<char>&& data){
-        return [&ctx,&data](http_req&& req){
+        return [&ctx,&data](http_request&& req){
             http_parser_init(&ctx.req_parser,HTTP_REQUEST);
             http_parser_execute(&ctx.req_parser,&ctx.settings,data.begin(),data.size());
-            return seastar::make_ready_future<http_req>(req);
+            return seastar::make_ready_future<http_request>(req);
         };
     };
-
     constexpr
     auto connection_proc=[](seastar::connected_socket& fd, seastar::socket_address& addr){
         return seastar::do_with(http_connection_context(std::move(fd),addr),
@@ -108,9 +122,15 @@ namespace http_service{
                                             [&conn]{
                                                 return conn._in.read().then([&conn](seastar::temporary_buffer<char>&& data)mutable{
                                                     if(!data.empty()){
-                                                        return build_requset(std::move(conn.req_parser),std::move(conn.settings),std::move(data),http_req())
-                                                                .then([&conn](http_req&& req){
-                                                                    conn._out.write(req.url);
+                                                        return build_requset(std::move(conn.req_parser)
+                                                                ,std::move(conn.settings)
+                                                                ,std::move(data)
+                                                                ,std::forward<http_request>(conn.last_request))
+                                                                .then([](http_request&& req){
+                                                                    return seastar::make_ready_future<std::string&&>("11111");
+                                                                })
+                                                                .then([&conn](std::string&& body){
+                                                                    conn._out.write(body);
                                                                 });
                                                     }
                                                     return seastar::make_ready_future();
@@ -118,7 +138,6 @@ namespace http_service{
                                                     conn._out.flush();
                                                     return conn._out.close().finally([]{});
                                                 });
-                                                return seastar::make_ready_future();
                                             }
                                     ).handle_exception([](std::exception_ptr ep){
                                     }).finally([]{
