@@ -11,12 +11,15 @@
 
 
 using namespace std::chrono_literals;
+
 int main(int argc, char** argv) {
     seastar::app_template app;
     app.run(argc, argv, []{
         []{
             seastar::when_all_succeed(
-                    listen_proc<http_service::http_connection_proc_type>(8080)(std::move(http_service::connection_proc))
+                    build_listen_proc(http_service::build_connection_proc([](http_service::http_request&& req){
+                        return "1234";
+                    }))(8080)
             ).then([]{
                 std::cout<<"1111"<<std::endl;
             });
