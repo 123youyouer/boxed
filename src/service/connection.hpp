@@ -7,8 +7,9 @@
 
 #include "core/iostream.hh"
 #include "net/api.hh"
+#include <boost/noncopyable.hpp>
 
-struct connection {
+struct connection : public boost::noncopyable {
     seastar::connected_socket _socket;
     seastar::socket_address _addr;
     seastar::input_stream<char> _in;
@@ -19,13 +20,6 @@ struct connection {
             , _in(_socket.input())
             , _out(_socket.output())
     {}
-    connection(connection&& o)
-            : _socket(std::move(o._socket))
-            , _addr(o._addr)
-            , _in(_socket.input())
-            , _out(_socket.output())
-    {}
-    ~connection() {}
 };
 
 #endif //BOXED_CONNECTION_HPP
