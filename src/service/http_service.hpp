@@ -8,6 +8,7 @@
 #include <boost/variant.hpp>
 #include "connection.hpp"
 #include "http-parser/http_parser.h"
+#include "../utils/unique_ptr_wrapper.hpp"
 
 namespace http_service{
     struct http_exp{
@@ -26,8 +27,8 @@ namespace http_service{
 
     };
     struct http_header {
-        char* name;
-        char* value;
+        std::string name;
+        std::string value;
     };
     struct http_response{
         std::string body;
@@ -36,9 +37,9 @@ namespace http_service{
         std::string method;
         std::string url;
         std::string body;
+        std::vector<http_header&> headers;
         unsigned int flags;
         unsigned short http_major, http_minor;
-        struct http_header *headers;
     };
 
     struct http_connection_context : public connection{
@@ -96,18 +97,6 @@ namespace http_service{
         virtual ~http_connection_context(){
             std::cout<<"delete s2"<<std::endl;
         }
-    };
-
-    template <typename ...T>
-    struct AAA{
-
-    };
-
-    template <typename INNER>
-    struct UNIQUE_PTR_WRAPPER{
-        std::unique_ptr<INNER> p;
-        UNIQUE_PTR_WRAPPER(INNER* _p):p(_p){};
-        UNIQUE_PTR_WRAPPER(UNIQUE_PTR_WRAPPER<INNER>&& o){p=std::move(o.p);}
     };
 
     constexpr
