@@ -11,6 +11,140 @@
 #include "../utils/unique_ptr_wrapper.hpp"
 
 namespace http_service{
+    enum class status_type {
+        ok = 200, //!< ok
+        created = 201, //!< created
+        accepted = 202, //!< accepted
+        no_content = 204, //!< no_content
+        multiple_choices = 300, //!< multiple_choices
+        moved_permanently = 301, //!< moved_permanently
+        moved_temporarily = 302, //!< moved_temporarily
+        not_modified = 304, //!< not_modified
+        bad_request = 400, //!< bad_request
+        unauthorized = 401, //!< unauthorized
+        forbidden = 403, //!< forbidden
+        not_found = 404, //!< not_found
+        internal_server_error = 500, //!< internal_server_error
+        not_implemented = 501, //!< not_implemented
+        bad_gateway = 502, //!< bad_gateway
+        service_unavailable = 503  //!< service_unavailable
+    };
+
+    template <status_type T>
+    constexpr
+    const char* buildres=NULL;
+
+    template <> constexpr const char* buildres<status_type::ok> = " 200 OK\r\n";
+    template <> constexpr const char* buildres<status_type::created> = " 201 Created\r\n";
+    template <> constexpr const char* buildres<status_type::accepted> = " 202 Accepted\r\n";
+    template <> constexpr const char* buildres<status_type::no_content> = " 204 No Content\r\n";
+    template <> constexpr const char* buildres<status_type::multiple_choices> = " 300 Multiple Choices\r\n";
+    template <> constexpr const char* buildres<status_type::moved_permanently> = " 301 Moved Permanently\r\n";
+    template <> constexpr const char* buildres<status_type::moved_temporarily> = " 302 Moved Temporarily\r\n";
+    template <> constexpr const char* buildres<status_type::not_modified> = " 304 Not Modified\r\n";
+    template <> constexpr const char* buildres<status_type::bad_request> = " 400 Bad Request\r\n";
+    template <> constexpr const char* buildres<status_type::unauthorized> = " 401 Unauthorized\r\n";
+    template <> constexpr const char* buildres<status_type::forbidden> = " 403 Forbidden\r\n";
+    template <> constexpr const char* buildres<status_type::not_found> = " 404 Not Found\r\n";
+    template <> constexpr const char* buildres<status_type::internal_server_error> = " 500 Internal Server Error\r\n";
+    template <> constexpr const char* buildres<status_type::not_implemented> = " 501 Not Implemented\r\n";
+    template <> constexpr const char* buildres<status_type::bad_gateway> = " 502 Bad Gateway\r\n";
+    template <> constexpr const char* buildres<status_type::service_unavailable> = " 503 Service Unavailable\r\n";
+
+    struct response_builder{
+    public:
+        const static char* get_status_string(const status_type& status) {
+            switch (status) {
+                case status_type::ok:
+                    return buildres<status_type::ok>;
+                case status_type::created:
+                    return buildres<status_type::created>;
+                case status_type::accepted:
+                    return buildres<status_type::accepted>;
+                case status_type::no_content:
+                    return buildres<status_type::no_content>;
+                case status_type::multiple_choices:
+                    return buildres<status_type::multiple_choices>;
+                case status_type::moved_permanently:
+                    return buildres<status_type::moved_permanently>;
+                case status_type::moved_temporarily:
+                    return buildres<status_type::moved_temporarily>;
+                case status_type::not_modified:
+                    return buildres<status_type::not_modified>;
+                case status_type::bad_request:
+                    return buildres<status_type::bad_request>;
+                case status_type::unauthorized:
+                    return buildres<status_type::unauthorized>;
+                case status_type::forbidden:
+                    return buildres<status_type::forbidden>;
+                case status_type::not_found:
+                    return buildres<status_type::not_found>;
+                case status_type::internal_server_error:
+                    return buildres<status_type::internal_server_error>;
+                case status_type::not_implemented:
+                    return buildres<status_type::not_implemented>;
+                case status_type::bad_gateway:
+                    return buildres<status_type::bad_gateway>;
+                case status_type::service_unavailable:
+                    return buildres<status_type::service_unavailable>;
+                default:
+                    return buildres<status_type::internal_server_error>;
+            }
+        }
+        std::string _status;
+        std::string _body;
+    public:
+        response_builder(char* buf){}
+        response_builder& set_status(const status_type& status){
+            _status=get_status_string(status);
+            return *this;
+        }
+        response_builder& set_content(const char* body){
+            return *this;
+        }
+        response_builder& set_content_type(const char* type){
+            return *this;
+        }
+        response_builder& set_version(const char* ver){
+            return *this;
+        }
+        char* line(){
+            return new char[1024];
+        }
+
+    };
+    constexpr
+    auto build_response_line=[](const status_type& status){
+        return [&status](const char* ver){
+            return [&status,&ver](const char* content_type){
+                return [&status,&ver,&content_type](const char* content){
+                    return [&status,&ver,&content_type,content](char* buf){
+                        char* w_ptr=buf;
+                        w_ptr=strcpy(w_ptr,response_builder::get_status_string(status));
+                        w_ptr=strcpy(w_ptr,ver);
+                        w_ptr=strcpy(w_ptr,"\r\n");
+                        w_ptr=strcpy(w_ptr,content_type);
+                        w_ptr=strcpy(w_ptr,"\r\n");
+                        w_ptr=strcpy(w_ptr,content);
+                        return buf;
+                    };
+                };
+            };
+
+        };
+    };
+
+
+    struct http_response{
+
+        status_type status;
+        std::string body;
+        http_response():status(status_type::ok){
+
+        }
+    };
+
+
     struct http_exp{
         std::string a;
         http_exp(const char* sz):a(sz){
@@ -30,14 +164,11 @@ namespace http_service{
         std::string name;
         std::string value;
     };
-    struct http_response{
-        std::string body;
-    };
     struct http_request{
         std::string method;
         std::string url;
         std::string body;
-        std::vector<http_header&> headers;
+        //std::vector<http_header&> headers;
         unsigned int flags;
         unsigned short http_major, http_minor;
     };
@@ -135,13 +266,18 @@ namespace http_service{
                                                                     std::forward<http_parser_settings>(conn.p->settings),
                                                                     std::forward<seastar::temporary_buffer<char>>(data),
                                                                     std::forward<http_request>(conn.p->current_req))
-                                                                    .then([&conn,&_handler](http_request&& req){
-                                                                        return build_response(
-                                                                                std::forward<http_response>(conn.p->current_res),
-                                                                                _handler(std::move(req)));
+                                                                    .then([&_handler](http_request&& req){
+                                                                        using t=decltype(build_response_line(status_type::ok)("1.1")("html")("html"));
+                                                                        return seastar::make_ready_future<t&&>(std::forward<t&&>(build_response_line
+                                                                                                                                         (status_type::ok)
+                                                                                                                                         ("1.1")
+                                                                                                                                         ("html")
+                                                                                                                                         (_handler(std::move(req)))));
+
                                                                     })
-                                                                    .then([&conn](http_response&& res){
-                                                                        return conn.p->_out.write(res.body);
+                                                                    .then([&conn](auto&& res){
+                                                                        char sz[1024]={0};
+                                                                        return conn.p->_out.write(res(sz));
                                                                     });
                                                         }else{
                                                             return seastar::make_ready_future();
