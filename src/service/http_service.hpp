@@ -266,18 +266,28 @@ namespace http_service{
                                                                     std::forward<http_parser_settings>(conn.p->settings),
                                                                     std::forward<seastar::temporary_buffer<char>>(data),
                                                                     std::forward<http_request>(conn.p->current_req))
-                                                                    .then([&_handler](http_request&& req){
+                                                                    .then([&conn,&_handler](http_request&& req){
+                                                                        /*
                                                                         using t=decltype(build_response_line(status_type::ok)("1.1")("html")("html"));
                                                                         return seastar::make_ready_future<t&&>(std::forward<t&&>(build_response_line
                                                                                                                                          (status_type::ok)
                                                                                                                                          ("1.1")
                                                                                                                                          ("html")
                                                                                                                                          (_handler(std::move(req)))));
-
-                                                                    })
-                                                                    .then([&conn](auto&& res){
+                                                                        */
+                                                                        auto res=build_response_line
+                                                                                (status_type::ok)
+                                                                                ("1.1")
+                                                                                ("html")
+                                                                                (_handler(std::move(req)));
                                                                         char sz[1024]={0};
                                                                         return conn.p->_out.write(res(sz));
+
+                                                                    })
+                                                                    .then([&conn](){
+                                                                        return conn.p->_out.flush();
+                                                                        //char sz[1024]={0};
+                                                                        //return conn.p->_out.write(res(sz));
                                                                     });
                                                         }else{
                                                             return seastar::make_ready_future();
