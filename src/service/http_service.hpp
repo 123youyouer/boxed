@@ -91,6 +91,7 @@ namespace http_service{
                     return buildres<status_type::internal_server_error>;
             }
         }
+        std::unique_ptr<const char> content;
         std::string _status;
         std::string _body;
     public:
@@ -108,24 +109,24 @@ namespace http_service{
         response_builder& set_version(const char* ver){
             return *this;
         }
-        char* line(){
+        char* new_response_line(){
             return new char[1024];
         }
 
     };
+    /*
     constexpr
     auto build_response_line=[](const status_type& status){
-        return [&status](const char* ver){
-            return [&status,&ver](const char* content_type){
-                return [&status,&ver,&content_type](const char* content){
-                    return [&status,&ver,&content_type,content](char* buf){
+        return [s=status](std::unique_ptr<char>& ver){
+            return [&s,v=std::move(ver)](std::unique_ptr<char>& content_type){
+                return [&s,&v,t=std::move(content_type)](std::unique_ptr<char>& content){
+                    return [&s,&v,&t,c=std::move(content)](char* buf){
                         char* w_ptr=buf;
-                        w_ptr=strcpy(w_ptr,response_builder::get_status_string(status));
-                        w_ptr=strcpy(w_ptr,ver);
-                        w_ptr=strcpy(w_ptr,"\r\n");
-                        w_ptr=strcpy(w_ptr,content_type);
-                        w_ptr=strcpy(w_ptr,"\r\n");
-                        w_ptr=strcpy(w_ptr,content);
+                        sprintf(w_ptr,"%s\r\n%s\r\n%s\r\n%s",
+                                response_builder::get_status_string(s),
+                                v,
+                                t,
+                                c);
                         return buf;
                     };
                 };
@@ -133,7 +134,7 @@ namespace http_service{
 
         };
     };
-
+*/
 
     struct http_response{
 
@@ -165,15 +166,6 @@ namespace http_service{
         std::string value;
     };
     struct http_request{
-        std::string method;
-        std::string url;
-        std::string body;
-        //std::vector<http_header&> headers;
-        unsigned int flags;
-        unsigned short http_major, http_minor;
-    };
-
-    struct http_connection_context : public connection{
     private:
         static int cb_on_message_begin(http_parser* p){
             return 0;
@@ -206,14 +198,7 @@ namespace http_service{
         static int cb_on_chunk_complete(http_parser* p){
             return 0;
         }
-    public:
-        http_request current_req;
-        http_response current_res;
-        http_parser req_parser;
-        http_parser_settings settings;
-        http_connection_context(seastar::connected_socket&& socket, seastar::socket_address addr)
-                :connection(std::move(socket),addr){
-            std::cout<<"build s1"<<std::endl;
+        void init_cb(){
             settings.on_message_begin=cb_on_message_begin;
             settings.on_url=cb_on_url;
             settings.on_status=cb_on_status;
@@ -225,7 +210,48 @@ namespace http_service{
             settings.on_chunk_header=cb_on_chunk_header;
             settings.on_chunk_complete=cb_on_chunk_complete;
         }
-        virtual ~http_connection_context(){
+        char* base_line;
+        size_t base_line_len;
+        size_t base_line_used;
+        void do_parser(){
+            http_parser_init(&parser,HTTP_REQUEST);
+            parser.data=this;
+            http_parser_execute(&parser,&settings,base_line,base_line_used);
+        }
+    public:
+        http_parser_settings settings;
+        http_parser parser;
+        std::string method;
+        std::string url;
+        std::string body;
+        //std::vector<http_header&> headers;
+        unsigned int flags;
+        unsigned short http_major, http_minor;
+        const http_request& reset(const char* request_line,size_t len){
+            if(base_line_len<(len+1)){
+                delete base_line;
+                base_line_len=len+1;
+                base_line=new char[base_line_len];
+            }
+            memcpy(base_line,request_line,len);
+            base_line_used=len;
+            do_parser();
+            return *this;
+        }
+        http_request():base_line(new char[base_line_len]),base_line_len(10240),base_line_used(0){
+            init_cb();
+        }
+    };
+
+    struct http_service_connection_context : public connection{
+    public:
+        http_request req;
+        http_response res;
+        http_service_connection_context(seastar::connected_socket&& socket, seastar::socket_address addr)
+                :connection(std::move(socket),addr){
+            std::cout<<"build s1"<<std::endl;
+        }
+        virtual ~http_service_connection_context(){
             std::cout<<"delete s2"<<std::endl;
         }
     };
@@ -247,66 +273,39 @@ namespace http_service{
         return seastar::make_ready_future<http_response&&>(std::forward<http_response&&>(res));
     };
 
-
     template <typename REQ_HANDLER>
     constexpr
-    auto build_connection_proc(REQ_HANDLER&& _handler)noexcept{
-        return [&_handler](seastar::connected_socket& fd, seastar::socket_address& addr){
-            return seastar::do_with(UNIQUE_PTR_WRAPPER(new http_connection_context(std::move(fd),addr)),
-                                    [&_handler](auto& conn){
-                                        return seastar::do_until(
-                                                [&conn]{
-                                                    return conn.p->_in.eof();
-                                                },
-                                                [&conn,_handler=std::forward<REQ_HANDLER>(_handler)]{
-                                                    return conn.p->_in.read().then([&conn,&_handler](seastar::temporary_buffer<char>&& data)mutable{
-                                                        if(!data.empty()){
-                                                            return build_requset(
-                                                                    std::move(conn.p->req_parser),
-                                                                    std::forward<http_parser_settings>(conn.p->settings),
-                                                                    std::forward<seastar::temporary_buffer<char>>(data),
-                                                                    std::forward<http_request>(conn.p->current_req))
-                                                                    .then([&conn,&_handler](http_request&& req){
-                                                                        /*
-                                                                        using t=decltype(build_response_line(status_type::ok)("1.1")("html")("html"));
-                                                                        return seastar::make_ready_future<t&&>(std::forward<t&&>(build_response_line
-                                                                                                                                         (status_type::ok)
-                                                                                                                                         ("1.1")
-                                                                                                                                         ("html")
-                                                                                                                                         (_handler(std::move(req)))));
-                                                                        */
-                                                                        auto res=build_response_line
-                                                                                (status_type::ok)
-                                                                                ("1.1")
-                                                                                ("html")
-                                                                                (_handler(std::move(req)));
-                                                                        char sz[1024]={0};
-                                                                        return conn.p->_out.write(res(sz));
-
-                                                                    })
-                                                                    .then([&conn](){
-                                                                        return conn.p->_out.flush();
-                                                                        //char sz[1024]={0};
-                                                                        //return conn.p->_out.write(res(sz));
-                                                                    });
-                                                        }else{
-                                                            return seastar::make_ready_future();
-                                                        }
-                                                    }).then([&conn](){
-                                                        return conn.p->_out.flush();
-                                                        //return conn._out.close().finally([]{});
-                                                    });
-                                                }
-                                        ).handle_exception([](std::exception_ptr ep){
-                                        }).finally([&conn]{
-                                            return conn.p->_out.close().finally([]{});
+    auto connection_proc(REQ_HANDLER&& _handler,seastar::connected_socket& fd, seastar::socket_address& addr){
+        return seastar::do_with(
+                UNIQUE_PTR_WRAPPER(new http_service_connection_context(std::move(fd),addr)),
+                [&_handler](UNIQUE_PTR_WRAPPER<http_service_connection_context>& ctx){
+                    return seastar::do_until(
+                            [&ctx]()->bool{
+                                return ctx.p->_in.eof();
+                            },
+                            [&ctx,&_handler](){
+                                return ctx.p->_in.read()
+                                        .then([&ctx,&_handler](seastar::temporary_buffer<char>&& data){
+                                            if(data.empty())
+                                                return seastar::make_ready_future();
+                                            else
+                                                return seastar::make_ready_future(ctx.p->res.body=_handler(ctx.p->req.reset(data.begin(),data.size())))
+                                                .then([&ctx](std::string&& r){
+                                                    ctx.p->_out.write(r)
+                                                            .then([&ctx](){
+                                                                return ctx.p->_out.flush().then([](){});
+                                                            }).then(([&ctx](){
+                                                                return ctx.p->_out.close();
+                                                            }));
+                                                })
                                         });
-
-                                    }
-            );
-
-        };
+                            }
+                    );
+                }
+        ).finally([](){std::cout<<"connection closed"<<std::endl;});
     };
+
+
 }
 
 #endif //BOXED_HTTP_SERVICE_H
