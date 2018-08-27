@@ -6,160 +6,57 @@
 #define BOXED_HTTP_SERVICE_H
 
 #include <boost/variant.hpp>
-#include "connection.hpp"
+#include "src/utils/connection.hpp"
 #include "http-parser/http_parser.h"
+#include "../utils/http.hpp"
 #include "../utils/unique_ptr_wrapper.hpp"
 
 namespace http_service{
-    enum class status_type {
-        ok = 200, //!< ok
-        created = 201, //!< created
-        accepted = 202, //!< accepted
-        no_content = 204, //!< no_content
-        multiple_choices = 300, //!< multiple_choices
-        moved_permanently = 301, //!< moved_permanently
-        moved_temporarily = 302, //!< moved_temporarily
-        not_modified = 304, //!< not_modified
-        bad_request = 400, //!< bad_request
-        unauthorized = 401, //!< unauthorized
-        forbidden = 403, //!< forbidden
-        not_found = 404, //!< not_found
-        internal_server_error = 500, //!< internal_server_error
-        not_implemented = 501, //!< not_implemented
-        bad_gateway = 502, //!< bad_gateway
-        service_unavailable = 503  //!< service_unavailable
-    };
-
-    template <status_type T>
+    template <typename T>
+    char* build_response_item(char* buf,T t){
+        return buf;
+    }
+    template <>
+    char* build_response_item<status_type>(char* buf,status_type t){
+        const char* tmp=get_status_string(t);
+        sprintf(buf,"%s\r\n",tmp);
+        return buf+strlen(tmp)+2;
+    }
+    template <>
+    char* build_response_item<const char*>(char* buf,const char* t){
+        const char* tmp=t;
+        sprintf(buf,"%s\r\n",tmp);
+        return buf+strlen(tmp)+2;
+    }
+    template <typename T0>
     constexpr
-    const char* buildres=NULL;
-
-    template <> constexpr const char* buildres<status_type::ok> = " 200 OK\r\n";
-    template <> constexpr const char* buildres<status_type::created> = " 201 Created\r\n";
-    template <> constexpr const char* buildres<status_type::accepted> = " 202 Accepted\r\n";
-    template <> constexpr const char* buildres<status_type::no_content> = " 204 No Content\r\n";
-    template <> constexpr const char* buildres<status_type::multiple_choices> = " 300 Multiple Choices\r\n";
-    template <> constexpr const char* buildres<status_type::moved_permanently> = " 301 Moved Permanently\r\n";
-    template <> constexpr const char* buildres<status_type::moved_temporarily> = " 302 Moved Temporarily\r\n";
-    template <> constexpr const char* buildres<status_type::not_modified> = " 304 Not Modified\r\n";
-    template <> constexpr const char* buildres<status_type::bad_request> = " 400 Bad Request\r\n";
-    template <> constexpr const char* buildres<status_type::unauthorized> = " 401 Unauthorized\r\n";
-    template <> constexpr const char* buildres<status_type::forbidden> = " 403 Forbidden\r\n";
-    template <> constexpr const char* buildres<status_type::not_found> = " 404 Not Found\r\n";
-    template <> constexpr const char* buildres<status_type::internal_server_error> = " 500 Internal Server Error\r\n";
-    template <> constexpr const char* buildres<status_type::not_implemented> = " 501 Not Implemented\r\n";
-    template <> constexpr const char* buildres<status_type::bad_gateway> = " 502 Bad Gateway\r\n";
-    template <> constexpr const char* buildres<status_type::service_unavailable> = " 503 Service Unavailable\r\n";
-
-    struct response_builder{
-    public:
-        const static char* get_status_string(const status_type& status) {
-            switch (status) {
-                case status_type::ok:
-                    return buildres<status_type::ok>;
-                case status_type::created:
-                    return buildres<status_type::created>;
-                case status_type::accepted:
-                    return buildres<status_type::accepted>;
-                case status_type::no_content:
-                    return buildres<status_type::no_content>;
-                case status_type::multiple_choices:
-                    return buildres<status_type::multiple_choices>;
-                case status_type::moved_permanently:
-                    return buildres<status_type::moved_permanently>;
-                case status_type::moved_temporarily:
-                    return buildres<status_type::moved_temporarily>;
-                case status_type::not_modified:
-                    return buildres<status_type::not_modified>;
-                case status_type::bad_request:
-                    return buildres<status_type::bad_request>;
-                case status_type::unauthorized:
-                    return buildres<status_type::unauthorized>;
-                case status_type::forbidden:
-                    return buildres<status_type::forbidden>;
-                case status_type::not_found:
-                    return buildres<status_type::not_found>;
-                case status_type::internal_server_error:
-                    return buildres<status_type::internal_server_error>;
-                case status_type::not_implemented:
-                    return buildres<status_type::not_implemented>;
-                case status_type::bad_gateway:
-                    return buildres<status_type::bad_gateway>;
-                case status_type::service_unavailable:
-                    return buildres<status_type::service_unavailable>;
-                default:
-                    return buildres<status_type::internal_server_error>;
-            }
-        }
-        std::unique_ptr<const char> content;
-        std::string _status;
-        std::string _body;
-    public:
-        response_builder(char* buf){}
-        response_builder& set_status(const status_type& status){
-            _status=get_status_string(status);
-            return *this;
-        }
-        response_builder& set_content(const char* body){
-            return *this;
-        }
-        response_builder& set_content_type(const char* type){
-            return *this;
-        }
-        response_builder& set_version(const char* ver){
-            return *this;
-        }
-        char* new_response_line(){
-            return new char[1024];
-        }
-
+    auto build_response_line(char* buf,T0 t0){
+        return build_response_item(buf,t0);
     };
-    /*
+    template <typename T0,typename ...T1>
     constexpr
-    auto build_response_line=[](const status_type& status){
-        return [s=status](std::unique_ptr<char>& ver){
-            return [&s,v=std::move(ver)](std::unique_ptr<char>& content_type){
-                return [&s,&v,t=std::move(content_type)](std::unique_ptr<char>& content){
-                    return [&s,&v,&t,c=std::move(content)](char* buf){
-                        char* w_ptr=buf;
-                        sprintf(w_ptr,"%s\r\n%s\r\n%s\r\n%s",
-                                response_builder::get_status_string(s),
-                                v,
-                                t,
-                                c);
-                        return buf;
-                    };
-                };
-            };
-
-        };
+    auto build_response_line(char* buf,T0 t0,T1 ...t1){
+        return build_response_line(build_response_item(buf,t0),t1...);
     };
-*/
+
+
+    template <typename T>
+    constexpr
+    auto test(T t){
+        auto x=boost::hana::if_(
+                std::is_same<T,int>{},
+                []{return 0;},
+                []{return "1111";}
+                );
+        return x;
+    }
 
     struct http_response{
-
         status_type status;
         std::string body;
         http_response():status(status_type::ok){
 
         }
-    };
-
-
-    struct http_exp{
-        std::string a;
-        http_exp(const char* sz):a(sz){
-            std::cout<<"build q2"<<std::endl;
-        }
-        http_exp(){
-            std::cout<<"build q1"<<std::endl;
-        }
-        ~http_exp(){
-            std::cout<<"delete q1"<<std::endl;
-        }
-
-
-
     };
     struct http_header {
         std::string name;
@@ -288,16 +185,23 @@ namespace http_service{
                                         .then([&ctx,&_handler](seastar::temporary_buffer<char>&& data){
                                             if(data.empty())
                                                 return seastar::make_ready_future();
-                                            else
-                                                return seastar::make_ready_future(ctx.p->res.body=_handler(ctx.p->req.reset(data.begin(),data.size())))
-                                                .then([&ctx](std::string&& r){
-                                                    ctx.p->_out.write(r)
-                                                            .then([&ctx](){
-                                                                return ctx.p->_out.flush().then([](){});
-                                                            }).then(([&ctx](){
-                                                                return ctx.p->_out.close();
-                                                            }));
-                                                })
+                                            auto x=test("111");
+                                            char sz[1024];
+                                            build_response_line(
+                                                    sz,
+                                                    std::move(status_type::ok),
+                                                    (const char*)"1.1",
+                                                    (const char*)"html",
+                                                    x,
+                                                    boost::hana::if_(boost::hana::true_c,"123","345"),
+                                                    _handler(ctx.p->req.reset(data.begin(),data.size())));
+                                            //ctx.p->res.body=_handler(ctx.p->req.reset(data.begin(),data.size()));
+                                            return ctx.p->_out.write(sz)
+                                                    .then([&ctx](){
+                                                        return ctx.p->_out.flush().then([](){});
+                                                    }).then(([&ctx](){
+                                                        return ctx.p->_out.close();
+                                                    }));
                                         });
                             }
                     );
