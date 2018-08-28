@@ -27,22 +27,22 @@ template <status_type T>
 constexpr
 const char* status_string= nullptr;
 
-template <> constexpr const char* status_string<status_type::ok> = " 200 OK\r\n";
-template <> constexpr const char* status_string<status_type::created> = " 201 Created\r\n";
-template <> constexpr const char* status_string<status_type::accepted> = " 202 Accepted\r\n";
-template <> constexpr const char* status_string<status_type::no_content> = " 204 No Content\r\n";
-template <> constexpr const char* status_string<status_type::multiple_choices> = " 300 Multiple Choices\r\n";
-template <> constexpr const char* status_string<status_type::moved_permanently> = " 301 Moved Permanently\r\n";
-template <> constexpr const char* status_string<status_type::moved_temporarily> = " 302 Moved Temporarily\r\n";
-template <> constexpr const char* status_string<status_type::not_modified> = " 304 Not Modified\r\n";
-template <> constexpr const char* status_string<status_type::bad_request> = " 400 Bad Request\r\n";
-template <> constexpr const char* status_string<status_type::unauthorized> = " 401 Unauthorized\r\n";
-template <> constexpr const char* status_string<status_type::forbidden> = " 403 Forbidden\r\n";
-template <> constexpr const char* status_string<status_type::not_found> = " 404 Not Found\r\n";
-template <> constexpr const char* status_string<status_type::internal_server_error> = " 500 Internal Server Error\r\n";
-template <> constexpr const char* status_string<status_type::not_implemented> = " 501 Not Implemented\r\n";
-template <> constexpr const char* status_string<status_type::bad_gateway> = " 502 Bad Gateway\r\n";
-template <> constexpr const char* status_string<status_type::service_unavailable> = " 503 Service Unavailable\r\n";
+template <> constexpr const char* status_string<status_type::ok> = " 200 OK";
+template <> constexpr const char* status_string<status_type::created> = " 201 Created";
+template <> constexpr const char* status_string<status_type::accepted> = " 202 Accepted";
+template <> constexpr const char* status_string<status_type::no_content> = " 204 No Content";
+template <> constexpr const char* status_string<status_type::multiple_choices> = " 300 Multiple Choices";
+template <> constexpr const char* status_string<status_type::moved_permanently> = " 301 Moved Permanently";
+template <> constexpr const char* status_string<status_type::moved_temporarily> = " 302 Moved Temporarily";
+template <> constexpr const char* status_string<status_type::not_modified> = " 304 Not Modified";
+template <> constexpr const char* status_string<status_type::bad_request> = " 400 Bad Request";
+template <> constexpr const char* status_string<status_type::unauthorized> = " 401 Unauthorized";
+template <> constexpr const char* status_string<status_type::forbidden> = " 403 Forbidden";
+template <> constexpr const char* status_string<status_type::not_found> = " 404 Not Found";
+template <> constexpr const char* status_string<status_type::internal_server_error> = " 500 Internal Server Error";
+template <> constexpr const char* status_string<status_type::not_implemented> = " 501 Not Implemented";
+template <> constexpr const char* status_string<status_type::bad_gateway> = " 502 Bad Gateway";
+template <> constexpr const char* status_string<status_type::service_unavailable> = " 503 Service Unavailable";
 
 const char* get_status_string(const status_type status) {
     switch (status) {
@@ -83,8 +83,10 @@ const char* get_status_string(const status_type status) {
     }
 }
 
-struct http_response{
-
+struct http_response_def{
+    struct content{
+        const char* content;
+    };
 };
 
 #endif //BOXED_HTTP_HPP

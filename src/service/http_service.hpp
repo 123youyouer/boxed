@@ -17,6 +17,11 @@ namespace http_service{
         return buf;
     }
     template <>
+    char* build_response_item<http_response_def::content>(char* buf,http_response_def::content t){
+        sprintf(buf,"\r\n%s\r\n",t.content);
+        return buf+strlen(t.content)+4;
+    }
+    template <>
     char* build_response_item<status_type>(char* buf,status_type t){
         const char* tmp=get_status_string(t);
         sprintf(buf,"%s\r\n",tmp);
@@ -31,7 +36,9 @@ namespace http_service{
     template <typename T0>
     constexpr
     auto build_response_line(char* buf,T0 t0){
-        return build_response_item(buf,t0);
+        char* rtn=build_response_item(buf,t0);
+        memset(rtn,0,1);
+        return rtn;
     };
     template <typename T0,typename ...T1>
     constexpr
@@ -144,11 +151,14 @@ namespace http_service{
     public:
         http_request req;
         http_response res;
+        char* response_buf;
         http_service_connection_context(seastar::connected_socket&& socket, seastar::socket_address addr)
                 :connection(std::move(socket),addr){
+            response_buf=new char[1024];
             std::cout<<"build s1"<<std::endl;
         }
         virtual ~http_service_connection_context(){
+            delete response_buf;
             std::cout<<"delete s2"<<std::endl;
         }
     };
@@ -185,18 +195,15 @@ namespace http_service{
                                         .then([&ctx,&_handler](seastar::temporary_buffer<char>&& data){
                                             if(data.empty())
                                                 return seastar::make_ready_future();
-                                            auto x=test("111");
-                                            char sz[1024];
                                             build_response_line(
-                                                    sz,
+                                                    ctx.p->response_buf,
+                                                    (const char*)"HTTP/1.1",
                                                     std::move(status_type::ok),
-                                                    (const char*)"1.1",
-                                                    (const char*)"html",
-                                                    x,
-                                                    boost::hana::if_(boost::hana::true_c,"123","345"),
-                                                    _handler(ctx.p->req.reset(data.begin(),data.size())));
-                                            //ctx.p->res.body=_handler(ctx.p->req.reset(data.begin(),data.size()));
-                                            return ctx.p->_out.write(sz)
+                                                    (const char*)"Cache-Control: private",
+                                                    (const char*)"Connection: Keep-Alive",
+                                                    (const char*)"Content-Type: text/html",
+                                                    http_response_def::content{_handler(ctx.p->req.reset(data.begin(),data.size()))});
+                                            return ctx.p->_out.write(ctx.p->response_buf)
                                                     .then([&ctx](){
                                                         return ctx.p->_out.flush().then([](){});
                                                     }).then(([&ctx](){
