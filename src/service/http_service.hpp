@@ -12,59 +12,25 @@
 #include "../utils/unique_ptr_wrapper.hpp"
 
 namespace http_service{
-    template <typename T>
-    char* build_response_item(char* buf,T t){
-        return buf;
-    }
-    template <>
-    char* build_response_item<http_response_def::content>(char* buf,http_response_def::content t){
-        sprintf(buf,"\r\n%s\r\n",t.content);
-        return buf+strlen(t.content)+4;
-    }
-    template <>
-    char* build_response_item<status_type>(char* buf,status_type t){
-        const char* tmp=get_status_string(t);
-        sprintf(buf,"%s\r\n",tmp);
-        return buf+strlen(tmp)+2;
-    }
-    template <>
-    char* build_response_item<const char*>(char* buf,const char* t){
-        const char* tmp=t;
-        sprintf(buf,"%s\r\n",tmp);
-        return buf+strlen(tmp)+2;
+    template <http::response_item_type T,auto ...S>
+    char* build_res_item(char* buf,http::response_item<T,S...>&& data){
+        sprintf(buf,"%s%s\r\n",data._k,data._v);
+        return buf+strlen(data._k)+strlen(data._v)+2;
     }
     template <typename T0>
     constexpr
-    auto build_response_line(char* buf,T0 t0){
-        char* rtn=build_response_item(buf,t0);
+    auto build_response_line(char* buf,T0&& t0){
+        char* rtn=build_res_item(buf,std::move(t0));
         memset(rtn,0,1);
-        return rtn;
+        return rtn+1;
     };
     template <typename T0,typename ...T1>
     constexpr
-    auto build_response_line(char* buf,T0 t0,T1 ...t1){
-        return build_response_line(build_response_item(buf,t0),t1...);
+    auto build_response_line(char* buf,T0&& t0,T1&& ...t1){
+        return build_response_line(build_res_item(buf,std::move(t0)),t1...);
     };
 
 
-    template <typename T>
-    constexpr
-    auto test(T t){
-        auto x=boost::hana::if_(
-                std::is_same<T,int>{},
-                []{return 0;},
-                []{return "1111";}
-                );
-        return x;
-    }
-
-    struct http_response{
-        status_type status;
-        std::string body;
-        http_response():status(status_type::ok){
-
-        }
-    };
     struct http_header {
         std::string name;
         std::string value;
@@ -150,11 +116,10 @@ namespace http_service{
     struct http_service_connection_context : public connection{
     public:
         http_request req;
-        http_response res;
         char* response_buf;
         http_service_connection_context(seastar::connected_socket&& socket, seastar::socket_address addr)
                 :connection(std::move(socket),addr){
-            response_buf=new char[1024];
+            response_buf=new char[10240];
             std::cout<<"build s1"<<std::endl;
         }
         virtual ~http_service_connection_context(){
@@ -174,11 +139,6 @@ namespace http_service{
         return seastar::make_ready_future<http_request&&>(std::forward<http_request&&>(req));
     };
 
-    constexpr
-    auto build_response=[](http_response&& res,const char* s){
-        res.body=s;
-        return seastar::make_ready_future<http_response&&>(std::forward<http_response&&>(res));
-    };
 
     template <typename REQ_HANDLER>
     constexpr
@@ -197,12 +157,12 @@ namespace http_service{
                                                 return seastar::make_ready_future();
                                             build_response_line(
                                                     ctx.p->response_buf,
-                                                    (const char*)"HTTP/1.1",
-                                                    std::move(status_type::ok),
-                                                    (const char*)"Cache-Control: private",
-                                                    (const char*)"Connection: Keep-Alive",
-                                                    (const char*)"Content-Type: text/html",
-                                                    http_response_def::content{_handler(ctx.p->req.reset(data.begin(),data.size()))});
+                                                    http::response_item<http::response_item_type::version>("1.1"),
+                                                    http::response_item<http::response_item_type::status,http::status_type::ok>(),
+                                                    http::response_item<http::response_item_type::connection>("Keep-Alive"),
+                                                    http::response_item<http::response_item_type::content_type>("text/html"),
+                                                    http::response_item<http::response_item_type::content>(_handler(ctx.p->req.reset(data.begin(),data.size())))
+                                            );
                                             return ctx.p->_out.write(ctx.p->response_buf)
                                                     .then([&ctx](){
                                                         return ctx.p->_out.flush().then([](){});
