@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
             seastar::when_all_succeed(
                     build_listen_proc([](seastar::connected_socket& fd, seastar::socket_address& addr){
                         return http_service::connection_proc([](const http_service::http_request& req){
-                            return "1234";
+                            return req.url.c_str();
                         },fd,addr);
                     })(8080)
             ).then([]{

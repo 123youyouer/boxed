@@ -11,6 +11,8 @@
 #include "../utils/http.hpp"
 #include "../utils/unique_ptr_wrapper.hpp"
 
+using namespace boost::hana::literals;
+
 namespace http_service{
     template <http::response_item_type T,auto ...S>
     char* build_res_item(char* buf,http::response_item<T,S...>&& data){
@@ -30,6 +32,17 @@ namespace http_service{
         return build_response_line(build_res_item(buf,std::move(t0)),t1...);
     };
 
+    template <typename... T>
+    constexpr
+    static auto order_response(char* buf,T&& ...t){
+        auto x=boost::hana::make_tuple(t...);
+        auto y=boost::hana::transform(http::response_item_order_maker<T...>::sorted_items,[&x](auto&& i){
+            return x[boost::hana::at_c<0>(i)];
+        });
+        return boost::hana::unpack(y,[buf](auto&& ...y0){
+            return build_response_line(buf,y0...);
+        });
+    }
 
     struct http_header {
         std::string name;
@@ -155,13 +168,13 @@ namespace http_service{
                                         .then([&ctx,&_handler](seastar::temporary_buffer<char>&& data){
                                             if(data.empty())
                                                 return seastar::make_ready_future();
-                                            build_response_line(
+                                            order_response(
                                                     ctx.p->response_buf,
+                                                    http::response_item<http::response_item_type::content>(_handler(ctx.p->req.reset(data.begin(),data.size()))),
+                                                    http::response_item<http::response_item_type::content_type>("text/html"),
                                                     http::response_item<http::response_item_type::version>("1.1"),
                                                     http::response_item<http::response_item_type::status,http::status_type::ok>(),
-                                                    http::response_item<http::response_item_type::connection>("Keep-Alive"),
-                                                    http::response_item<http::response_item_type::content_type>("text/html"),
-                                                    http::response_item<http::response_item_type::content>(_handler(ctx.p->req.reset(data.begin(),data.size())))
+                                                    http::response_item<http::response_item_type::connection>("Keep-Alive")
                                             );
                                             return ctx.p->_out.write(ctx.p->response_buf)
                                                     .then([&ctx](){

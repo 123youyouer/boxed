@@ -4,6 +4,9 @@
 
 #ifndef BOXED_HTTP_HPP
 #define BOXED_HTTP_HPP
+
+#include <boost/hana.hpp>
+using namespace boost::hana::literals;
 namespace http{
     enum class status_type {
         ok = 200, //!< ok
@@ -85,15 +88,15 @@ namespace http{
     }
 
     enum class response_item_type{
-        version=0,
-        status=1,
-        connection=2,
-        content_type=3,
-        content=4
+        version,
+        status,
+        connection,
+        content_type,
+        content
     };
     template <response_item_type T>
     constexpr
-    const char* response_item_name= "";
+    const char* response_item_name= "\r\n";
 
     template<> constexpr const char* response_item_name<response_item_type::version> = "HTTP/";
     template<> constexpr const char* response_item_name<response_item_type::status> = "";
@@ -101,23 +104,51 @@ namespace http{
     template<> constexpr const char* response_item_name<response_item_type::content_type> = "Content-Type: ";
     template<> constexpr const char* response_item_name<response_item_type::content> = "\r\n";
 
+    template <response_item_type T>
+    constexpr
+    const auto response_item_order= 9999_c;
+
+    template<> constexpr auto response_item_order<response_item_type::version> = 0_c;
+    template<> constexpr auto response_item_order<response_item_type::status> = 1_c;
+    template<> constexpr auto response_item_order<response_item_type::connection> = 2_c;
+    template<> constexpr auto response_item_order<response_item_type::content_type> = 3_c;
+    template<> constexpr auto response_item_order<response_item_type::content> = 4_c;
+
     template <response_item_type T,auto ...S>
     struct response_item{
-        const response_item_type _t;
-        const char* _k;
-        const char* _v;
-        response_item(const char* v):_t(T),_k(response_item_name<T>),_v(v){};
+        const constexpr static auto     _t=response_item_order<T>;
+        const constexpr static char*    _k=response_item_name<T>;
+        const char*                     _v;
+        response_item():_v(""){};
+        response_item(const char* v):_v(v){};
     };
 
     template <status_type S>
-    struct response_item<response_item_type::status,S>{
-        const response_item_type _t;
-        const char* _k;
-        const char* _v;
-        response_item()
-                :_t(response_item_type::status)
-                ,_k(response_item_name<response_item_type::status>)
-                ,_v(status_string<S>){};
+    struct response_item<response_item_type::status,S> : public response_item<response_item_type::status>{
+        response_item():response_item<response_item_type::status>(status_string<S>){}
     };
+
+    template <typename... T>
+    struct response_item_order_maker{
+        constexpr
+        static auto less=[](auto&& i1,auto&& i2){
+            return boost::hana::less(boost::hana::at_c<1>(i1)._t,boost::hana::at_c<1>(i2)._t);
+        };
+        constexpr
+        static
+        auto compute_order(){
+            typedef decltype(boost::hana::zip_shortest(
+                    boost::hana::make_basic_tuple(0_c,1_c,2_c,3_c,4_c,5_c,6_c,7_c,8_c,9_c,10_c,11_c,12_c,13_c,14_c,15_c),
+                    boost::hana::tuple<T...>())) _inner_zipped;
+            typedef decltype(boost::hana::sort(
+                    _inner_zipped(),
+                    response_item_order_maker<T...>::less)) response_item_sorted;
+            return response_item_sorted();
+        }
+        typedef decltype(compute_order()) sorted_items_type;
+        const static sorted_items_type sorted_items;
+    };
+    template <typename... T>
+    typename response_item_order_maker<T...>::sorted_items_type const response_item_order_maker<T...>::sorted_items;
 }
 #endif //BOXED_HTTP_HPP
