@@ -5,7 +5,7 @@ add_library(http_parser
 add_executable(boxed
         main.cpp
         service/http_service.hpp
-        service/listener.hpp utils/connection.hpp utils/unique_ptr_wrapper.hpp utils/http.hpp)
+        service/listener.hpp utils/connection.hpp utils/unique_ptr_wrapper.hpp utils/http.hpp vm/api_console.hpp vm/api_aware_base.hpp utils/null_terminated_ptr.hpp)
 message(STATUS,${CMAKE_CURRENT_BINARY_DIR})
 
 IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
@@ -22,6 +22,8 @@ IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
             -Wno-uninitialized
             -Wno-mismatched-tags
             -Wno-error=cpp
+            -Wno-unused-lambda-capture
+            -O0 -g
             #-Wno-stringop-overflow
             #        -DSEASTAR_HAVE_GCC6_CONCEPTS
             -DSEASTAR_HAVE_HWLOC
@@ -47,6 +49,7 @@ IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
             -Wno-overloaded-virtual
             -Wno-uninitialized
             -Wno-error=cpp
+            -Wno-unused-lambda-capture
             #-Wno-stringop-overflow
             #        -DSEASTAR_HAVE_GCC6_CONCEPTS
             -DSEASTAR_HAVE_HWLOC
