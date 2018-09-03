@@ -12,4 +12,7 @@ namespace vm{
         }
     };
 }
+namespace vm_api{
+
+}
 #endif //BOXED_API_CONSOLE_HPP
